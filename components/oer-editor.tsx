@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowRight, Check, Copy, RotateCcw, Save } from 'lucide-react';
-import { questions, effectiveNote, generateSummary, scoreReport, completion, fullReport, actionNote, isNoncompliant, isAnswered, type OerAnswer, type CorrectiveAction, type OerChoice, type OerReport } from '@/lib/oer';
+import { questions, generateWrapUp, generateDeepCleaningNote, effectiveNote, generateSummary, scoreReport, completion, fullReport, actionNote, isNoncompliant, isAnswered, type OerAnswer, type CorrectiveAction, type OerChoice, type OerReport } from '@/lib/oer';
 
 type Props = { report: OerReport; onChange: (report: OerReport) => void; onSave: (status: 'draft' | 'completed') => void; onCopy: (text: string) => void; working: boolean };
 
@@ -14,6 +14,10 @@ function Choice({ label, value, options, onChange }: { label: string; value?: st
   return <fieldset className="oer-choice"><legend>{label}</legend><div className="segmented">{options.map(option => <button key={option.value} type="button" aria-pressed={value === option.value} className={value === option.value ? 'selected' : ''} onClick={() => onChange(value === option.value ? '' : option.value)}>{option.label}</button>)}</div></fieldset>;
 }
 
+function GeneratedDescription({title,text,edited,onEdit,onRegenerate,onCopy}:{title:string;text:string;edited:boolean;onEdit:(text:string)=>void;onRegenerate:()=>void;onCopy:(text:string)=>void}) {
+ return <section className="oer-summary-panel"><h2>{title}</h2><p className="oer-help">Automatically generated from the current inspection answers and recorded actions.</p><div className="note-box"><div className="note-header"><span>{edited?'Edited description':'Generated description'}</span><div className="note-actions"><button onClick={onRegenerate}><RotateCcw size={14}/>Regenerate</button><button onClick={()=>onCopy(text)}><Copy size={14}/>Copy {title.toLowerCase()}</button></div></div>{edited&&<p className="oer-note-warning">Your edits are preserved. Regenerate to use the latest inspection answers.</p>}<textarea aria-label={title} rows={6} value={text} onChange={e=>onEdit(e.target.value)}/></div></section>;
+}
+
 const yesNo = [{value:'yes',label:'Yes'},{value:'no',label:'No'}];
 
 export function OerEditor({ report, onChange, onSave, onCopy, working }: Props) {
@@ -22,6 +26,11 @@ export function OerEditor({ report, onChange, onSave, onCopy, working }: Props) 
   const count = completion(report);
   const score = scoreReport(report);
   const summary = report.summary ?? generateSummary(report);
+  const wrapUp = report.wrapUp ?? generateWrapUp(report);
+  const deepNote = report.deepCleaning.note ?? generateDeepCleaningNote(report);
+  const wrapUpPanel = <GeneratedDescription title="Wrap-up notes" text={wrapUp} edited={report.wrapUp!==undefined} onEdit={wrapUp=>onChange({...report,wrapUp})} onRegenerate={()=>onChange({...report,wrapUp:undefined})} onCopy={onCopy}/>;
+  const deepPanel = <GeneratedDescription title="Deep-cleaning description" text={deepNote} edited={report.deepCleaning.note!==undefined} onEdit={note=>onChange({...report,deepCleaning:{...report.deepCleaning,note}})} onRegenerate={()=>onChange({...report,deepCleaning:{...report.deepCleaning,note:undefined}})} onCopy={onCopy}/>;
+  const executivePanel = <GeneratedDescription title="Executive summary" text={summary} edited={report.summary!==undefined} onEdit={summary=>onChange({...report,summary})} onRegenerate={()=>onChange({...report,summary:undefined})} onCopy={onCopy}/>;
   const deep = (patch:Partial<OerReport['deepCleaning']>) => onChange({...report,deepCleaning:{...report.deepCleaning,...patch}});
   const labels:Record<string,string> = {yes:'Yes',no:'No',na:'N/A',unverified:'Unable to Verify'};
   return <section className="oer-editor">
@@ -40,7 +49,7 @@ export function OerEditor({ report, onChange, onSave, onCopy, working }: Props) 
           const corrective = answer.corrective || {};
           const setCorrective = (patch:Partial<CorrectiveAction>) => update(q.id,{corrective:{...corrective,...patch}});
           return <div key={q.id}>
-            {q.id === 29 && <div className="oer-section-heading"><h2>Wrap-up</h2><p>Record the representative, fines, and supervisor rating.</p></div>}
+            {q.id === 29 && <div className="oer-section-heading"><h2>Wrap-up</h2><p>Your inspection findings and corrective actions are summarized automatically below. Enter the representative, any fine, and the official rating separately.</p>{wrapUpPanel}</div>}
             <article className="question-card"><div className="question-heading"><span className="question-number">{String(q.id).padStart(2,'0')}</span><div><h3>{q.label}</h3><p className="oer-points">{q.points ? `${q.points} points · provisional scoring` : 'Administrative · not scored'}{q.id === 14 ? ' · Yes indicates a finding' : ''}</p></div>{isAnswered(q,answer) && <Check className="question-check" size={18}/>}</div><div className="question-body">
               {q.kind === 'text' ? <><Field label={q.id === 19 ? 'Produce supplier' : 'Store representative'} value={answer.value} onChange={value => update(q.id,{value,answer:undefined})}/>{q.id === 19 && <Choice label="Supplier verification" value={answer.answer} options={[{value:'unverified',label:report.presence === 'absent' ? 'Chef Not Present · Unable to Verify' : 'Unable to Verify'}]} onChange={value => update(q.id,{answer:value as OerChoice,value:''})}/>}</> : <Choice label={`Response to question ${q.id}`} value={answer.answer} options={q.options.map(value => ({value,label:labels[value] || value}))} onChange={value => update(q.id,{answer:value as OerChoice,findings:[]})}/>}
               {report.presence === 'absent' && q.direct && <p className="oer-help">Use Unable to Verify when direct observation or knowledge could not be confirmed. Facility observations can still be recorded below.</p>}
@@ -54,14 +63,17 @@ export function OerEditor({ report, onChange, onSave, onCopy, working }: Props) 
             </div></article>
           </div>;
         })}</div>
-        <section className="question-card"><div className="oer-section-heading"><h2>Deep cleaning</h2><p>Record cleaning details and supporting evidence, when applicable.</p></div><Choice label="Did the location undergo deep cleaning during the audit?" value={report.deepCleaning.answer} options={yesNo} onChange={answer => deep({answer})}/><Field label="When was the location deep cleaned?" type="date" value={report.deepCleaning.date} onChange={date => deep({date})}/><Field label="Photo evidence reference (optional)" value={report.deepCleaning.evidence} onChange={evidence => deep({evidence})}/><Field label="Findings (optional)" value={report.deepCleaning.findings} onChange={findings => deep({findings})}/><Field label="Corrective actions — specify completed or planned" value={report.deepCleaning.action} onChange={action => deep({action})}/></section>
+        <section className="question-card"><div className="oer-section-heading"><h2>Deep cleaning</h2><p>Record cleaning details and supporting evidence, when applicable.</p></div><Choice label="Did the location undergo deep cleaning during the audit?" value={report.deepCleaning.answer} options={yesNo} onChange={answer => deep({answer})}/><Field label="When was the location deep cleaned?" type="date" value={report.deepCleaning.date} onChange={date => deep({date})}/><Field label="Photo evidence reference (optional)" value={report.deepCleaning.evidence} onChange={evidence => deep({evidence})}/><Field label="Findings (optional)" value={report.deepCleaning.findings} onChange={findings => deep({findings})}/><Field label="Corrective actions — specify completed or planned" value={report.deepCleaning.action} onChange={action => deep({action})}/>{deepPanel}</section>
+        {executivePanel}
         <div className="generate-actions"><button className="primary" onClick={() => {setView('summary');window.scrollTo({top:0,behavior:'smooth'})}}>Review report <ArrowRight size={17}/></button><button className="secondary" disabled={working} onClick={() => onSave('draft')}><Save size={17}/>Save draft</button></div>
       </> : <>
-        <section className="oer-summary-panel"><h2>Executive summary</h2><p className="oer-help">Generated from the current inspection answers and recorded actions.</p><div className="note-box"><div className="note-header"><span>{report.summary !== undefined ? 'Edited summary' : 'Generated summary'}</span><div className="note-actions"><button onClick={() => onChange({...report,summary:undefined})}><RotateCcw size={14}/>Regenerate</button><button onClick={() => onCopy(summary)}><Copy size={14}/>Copy summary</button></div></div>{report.summary !== undefined && <p className="oer-note-warning">Your edited summary is preserved. Regenerate to use the current inspection answers.</p>}<textarea aria-label="Executive summary" rows={8} value={summary} onChange={event => onChange({...report,summary:event.target.value})}/></div></section>
+        {executivePanel}
+        {wrapUpPanel}
+        {deepPanel}
         <div className="oer-score"><div><span>Provisional score</span><strong>{score.percentage === null ? '—' : `${score.percentage}%`}</strong></div><div><span>Verified response points</span><strong>{score.earned} / {score.possible}</strong></div><div><span>Total configured points</span><strong>{score.total}</strong></div></div><p className="oer-help">Provisional only: N/A, Unable to Verify, and unanswered items are excluded. Official N/A rules, category mappings, and pass/fail thresholds are unverified. The rating is selected by the supervisor.</p>
         <div className="generate-actions"><button className="primary" onClick={() => onCopy(fullReport(report))}><Copy size={17}/>Copy all notes</button><button className="secondary" disabled={working} onClick={() => onSave('draft')}><Save size={17}/>Save draft</button><button className="secondary" disabled={working || count !== questions.length} onClick={() => onSave('completed')}><Check size={17}/>Save as completed</button></div>{count !== questions.length && <p className="oer-help">Answer all {questions.length} questions to complete the report. Unable to Verify remains available where supported.</p>}
         <div className="oer-section-heading"><h2>Individual notes</h2></div><div className="oer-summary-notes">{questions.map(q => {const note = effectiveNote(q,report.answers[q.id],report.presence);return <article className="oer-summary-note" key={q.id}><h3>{q.id}. {q.short}</h3><p>{note || 'Unanswered — no description generated.'}</p>{note && <button onClick={() => onCopy(note)}><Copy size={14}/>Copy description</button>}{isNoncompliant(q,report.answers[q.id]) && report.answers[q.id]?.corrective && <p className="oer-help">Corrective action: {actionNote(report.answers[q.id].corrective) || 'No action documented.'}</p>}</article>})}</div>
-        <div className="oer-summary-note"><h3>Deep cleaning</h3><p>{report.deepCleaning.answer ? `Deep cleaning during audit: ${report.deepCleaning.answer}.` : 'Deep-cleaning status not recorded.'} {report.deepCleaning.date && `Date: ${report.deepCleaning.date}.`} {report.deepCleaning.findings} {report.deepCleaning.action}</p>{report.deepCleaning.evidence && <p>Evidence: {report.deepCleaning.evidence}</p>}</div>
+
       </>}
     </>}
   </section>;

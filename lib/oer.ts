@@ -2,7 +2,7 @@ export type Presence = '' | 'present' | 'absent';
 export type OerChoice = '' | 'yes' | 'no' | 'na' | 'unverified' | 'Pass' | 'Fail' | 'Not Determined';
 export type CorrectiveAction = {issue?:string; corrected?:string; action?:string; coaching?:string; retraining?:string; followUp?:string; date?:string; assigned?:string; notes?:string};
 export type OerAnswer = {answer?:OerChoice; value?:string; findings?:string[]; observations?:string; measurement?:string; evidence?:string; corrective?:CorrectiveAction; generatedNote?:string; note?:string};
-export type OerReport = {presence:Presence; answers:Record<number,OerAnswer>; summary?:string; generatedSummary?:string; deepCleaning:{answer?:string; date?:string; evidence?:string; findings?:string; action?:string}};
+export type OerReport = {presence:Presence; answers:Record<number,OerAnswer>; summary?:string; generatedSummary?:string; wrapUp?:string; generatedWrapUp?:string; deepCleaning:{answer?:string; date?:string; evidence?:string; findings?:string; action?:string; note?:string; generatedNote?:string}};
 export type OerQuestion = {id:number; label:string; short:string; points:number; options:OerChoice[]; compliant:string; noncompliant:string; findings?:string[]; direct?:boolean; kind?:'text'|'select'; evidence?:boolean; measurement?:boolean};
 const yn:OerChoice[]=['yes','no'];
 const rows: [string,string,number,string,string][] = [
@@ -63,7 +63,33 @@ export function generateSummary(r:OerReport):string {
  const compliant=questions.filter(q=>q.points&&['yes','no'].includes(r.answers[q.id]?.answer||'')&&!isNoncompliant(q,r.answers[q.id]));
  const findings=questions.filter(q=>isNoncompliant(q,r.answers[q.id]));
  const actions=findings.map(q=>actionNote(r.answers[q.id]?.corrective)).filter(Boolean);
- return [r.presence==='present'?'The chef was present during the inspection.':r.presence==='absent'?'The chef was not present during the inspection.':'Chef presence has not been recorded.',compliant.length?`Verified compliant areas included ${compliant.map(q=>q.short.toLowerCase()).join(', ')}.`:'',findings.length?`Areas requiring attention included ${findings.map(q=>q.short.toLowerCase()).join(', ')}.`:'',...findings.map(q=>r.answers[q.id]?.findings?.length?`${q.short}: ${r.answers[q.id].findings!.filter(f=>f!=='Other').join(', ')}.`:''),...actions,r.deepCleaning.answer==='yes'?`Deep cleaning was recorded${r.deepCleaning.date?` on ${r.deepCleaning.date}`:''}.`:'',sentence(r.deepCleaning.findings),r.deepCleaning.action?`Deep-cleaning action recorded: ${sentence(r.deepCleaning.action)}`:'',completion(r)<questions.length?'The review is incomplete; unanswered and unverified items are not evidence of compliance.':Object.values(r.answers).some(a=>a.answer==='unverified')?'Some items could not be verified and are not evidence of compliance.':''].filter(Boolean).join(' ');
+ return [r.presence==='present'?'The chef was present during the inspection.':r.presence==='absent'?'The chef was not present during the inspection.':'Chef presence has not been recorded.',compliant.length?`Verified compliant areas included ${compliant.map(q=>q.short.toLowerCase()).join(', ')}.`:'',findings.length?`Areas requiring attention included ${findings.map(q=>q.short.toLowerCase()).join(', ')}.`:'',...findings.map(q=>r.answers[q.id]?.findings?.length?`${q.short}: ${r.answers[q.id].findings!.filter(f=>f!=='Other').join(', ')}.`:''),...actions,r.deepCleaning.answer==='yes'?`The location underwent deep cleaning during the audit${r.deepCleaning.date?` (recorded date: ${r.deepCleaning.date})`:''}.`:r.deepCleaning.answer==='no'?'The location did not undergo deep cleaning during the audit.':'Deep cleaning during the audit has not been confirmed.',sentence(r.deepCleaning.findings),r.deepCleaning.action?`Deep-cleaning action recorded: ${sentence(r.deepCleaning.action)}`:'',completion(r)<questions.length?'The review is incomplete; unanswered and unverified items are not evidence of compliance.':Object.values(r.answers).some(a=>a.answer==='unverified')?'Some items could not be verified and are not evidence of compliance.':''].filter(Boolean).join(' ');
 }
-export function fullReport(r:OerReport):string{return ['OPERATIONAL EXCELLENCE REVIEW',r.summary??generateSummary(r),...questions.map(q=>{const note=effectiveNote(q,r.answers[q.id],r.presence);return note?`${q.id}. ${q.label}\n${note}`:''}),r.deepCleaning.answer||r.deepCleaning.date||r.deepCleaning.findings||r.deepCleaning.action||r.deepCleaning.evidence?`DEEP CLEANING\n${[r.deepCleaning.answer?`During audit: ${r.deepCleaning.answer}.`:'',r.deepCleaning.date?`Date: ${r.deepCleaning.date}.`:'',sentence(r.deepCleaning.findings),r.deepCleaning.action?`Recorded action: ${sentence(r.deepCleaning.action)}`:'',r.deepCleaning.evidence?`Evidence reference: ${r.deepCleaning.evidence}`:''].filter(Boolean).join(' ')}`:''].filter(Boolean).join('\n\n')}
-export function prepareReport(r:OerReport):OerReport{return {...r,generatedSummary:generateSummary(r),answers:Object.fromEntries(questions.filter(q=>r.answers[q.id]).map(q=>[q.id,{...r.answers[q.id],generatedNote:generateNote(q,r.answers[q.id],r.presence)}]))}}
+export function generateWrapUp(r:OerReport):string {
+ const inspected=questions.filter(q=>q.id<=28&&isAnswered(q,r.answers[q.id]));
+ const findings=inspected.filter(q=>isNoncompliant(q,r.answers[q.id]));
+ const unverified=inspected.filter(q=>r.answers[q.id]?.answer==='unverified');
+ return [r.presence==='present'?'The chef was present during the inspection.':r.presence==='absent'?'The chef was not present during the inspection.':'Chef presence has not been recorded.',
+ `${inspected.length} of 28 inspection questions have recorded responses.`,
+ findings.length?`Areas requiring attention: ${findings.map(q=>q.short.toLowerCase()).join(', ')}.`:inspected.length?'No noncompliant responses have been recorded in the answered inspection questions.':'No inspection findings have been recorded.',
+ ...findings.map(q=>{const action=actionNote(r.answers[q.id]?.corrective);return action?`${q.short}: ${action}`:''}),
+ unverified.length?`Unable to verify: ${unverified.map(q=>q.short.toLowerCase()).join(', ')}.`:'',
+ ...questions.filter(q=>[29,30,32].includes(q.id)).map(q=>generateNote(q,r.answers[q.id],r.presence))
+ ].filter(Boolean).join(' ');
+}
+export function generateDeepCleaningNote(r:OerReport):string {
+ const d=r.deepCleaning;
+ const cleaningFindings=questions.filter(q=>[12,13,15,20,21].includes(q.id)&&isNoncompliant(q,r.answers[q.id]));
+ return [d.answer==='yes'?'The location underwent deep cleaning during the audit.':d.answer==='no'?'The location did not undergo deep cleaning during the audit.':'Deep cleaning during the audit has not been confirmed.',
+ d.date?`Recorded deep-cleaning date: ${d.date}.`:'',
+ cleaningFindings.length?`Inspection findings requiring cleaning or sanitation attention included ${cleaningFindings.map(q=>q.short.toLowerCase()).join(', ')}.`:'',
+ ...cleaningFindings.map(q=>{const a=r.answers[q.id];return [a.findings?.filter(f=>f!=='Other').map(sentence).join(' '),sentence(a.observations),actionNote(a.corrective)].filter(Boolean).join(' ')}),
+ sentence(d.findings),d.action?`Deep-cleaning action recorded: ${sentence(d.action)}`:'',d.evidence?`Evidence reference: ${sentence(d.evidence)}`:''
+ ].filter(Boolean).join(' ');
+}
+export function fullReport(r:OerReport):string {
+ return ['OPERATIONAL EXCELLENCE REVIEW',`EXECUTIVE SUMMARY\n${r.summary??generateSummary(r)}`,
+ ...questions.map(q=>{const note=effectiveNote(q,r.answers[q.id],r.presence);return note?`${q.id}. ${q.label}\n${note}`:''}),
+ `WRAP-UP\n${r.wrapUp??generateWrapUp(r)}`,`DEEP CLEANING\n${r.deepCleaning.note??generateDeepCleaningNote(r)}`].filter(Boolean).join('\n\n');
+}
+export function prepareReport(r:OerReport):OerReport{return {...r,generatedSummary:generateSummary(r),generatedWrapUp:generateWrapUp(r),deepCleaning:{...r.deepCleaning,generatedNote:generateDeepCleaningNote(r)},answers:Object.fromEntries(questions.filter(q=>r.answers[q.id]).map(q=>[q.id,{...r.answers[q.id],generatedNote:generateNote(q,r.answers[q.id],r.presence)}]))}}
