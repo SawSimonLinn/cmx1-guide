@@ -2,9 +2,10 @@
 create table if not exists public.visit_reports (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  form_type text not null default 'Store Visit' check (form_type = 'Store Visit'),
+  form_type text not null default 'Store Visit' check (form_type in ('Store Visit', 'Operational Excellence Review')),
   status text not null default 'draft' check (status in ('draft','completed')),
   answers jsonb not null default '{}'::jsonb,
+  oer_data jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -2,10 +2,25 @@
   "name": "hissho-field-notes",
   "version": "1.0.0",
   "private": true,
-  "scripts": {"dev":"next dev", "build":"next build", "start":"next start", "lint":"tsc --noEmit"},
-  "dependencies": {
-    "@supabase/ssr":"^0.6.1", "@supabase/supabase-js":"^2.49.4",
-    "lucide-react":"^0.468.0", "next":"^15.3.0", "react":"^19.0.0", "react-dom":"^19.0.0"
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "test": "rm -rf .test-build && tsc lib/oer.ts lib/questions.ts --module commonjs --target es2020 --outDir .test-build --skipLibCheck && node --test tests/*.test.cjs"
   },
-  "devDependencies":{"@types/node":"^22.14.0", "@types/react":"^19.0.12", "@types/react-dom":"^19.0.4", "typescript":"^5.8.3"}
+  "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "lucide-react": "^0.468.0",
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "typescript": "^5.8.3"
+  }
 }

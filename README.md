@@ -33,3 +33,21 @@ The app **does not actually verify** observations. It generates note language ba
 ## Extending later
 
 New templates can be added to `lib/questions.ts`; a future form-type-specific table or structured JSON schema can support OER and site surveys without changing the UI system.
+
+## Operational Excellence Review
+
+OER is enabled in Choose a form alongside Store Visit. Start with Chef/FZ presence, record verified answers, select findings, and copy individual editable notes into CMX1. Review the executive summary and copy all notes before saving a draft or completed report. History opens either report type and can create a **blank** draft of the same type; previous answers and findings are deliberately not copied.
+
+For an existing database, run `supabase/migrations/20261110_oer.sql` in the Supabase SQL Editor before saving OER reports. New databases can use `supabase/schema.sql`. The existing authenticated, per-user row-level policies protect OER data too. Google/Microsoft authentication is reused. No external AI API is needed.
+
+Evidence fields store references to photos/documents (for example, a secure file location); this module does not upload files or grant access to referenced evidence. Generated notes and summaries are saved alongside manual overrides. Regenerate explicitly to replace an edited note or summary after changing answers.
+
+### Scoring pending official verification
+
+The reference PDF was not supplied in the available attachments. The typed question definitions use the numbering, wording and point values in the task (1–30 and 32; no question 31). Verify these against the original before operational rollout.
+
+All displayed scores are **provisional**, using only scored questions answered Yes or No. Question 14 is reversed: Yes loses its three points. Zero-point administrative items are excluded. N/A, Unable to Verify, and unanswered questions are excluded from the provisional answered-item denominator; the total configured points and coverage are displayed separately. This is not an official N/A rule. Category mappings, official denominator adjustments, treatment of unverified answers, and pass/fail thresholds remain unverified. Category scores and automatic official Pass/Fail are therefore disabled. Rating is explicitly entered by the supervisor.
+
+Chef absence never changes an answer or awards/deducts points. Corrective text only describes correction/coaching as completed when confirmed, and separates retraining/follow-up requirements. Compound questions should use Unable to Verify when supported if not all elements can be verified; record partial observations in the details field.
+
+Run `npm test` for deterministic note, summary, scoring, serialization, and Store Visit regression tests; `npm run lint` for TypeScript; `npm run build` for a production build. Live authenticated Supabase save/reopen and cross-user RLS checks require a configured test account and applied migration.
