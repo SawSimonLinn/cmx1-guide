@@ -1,7 +1,8 @@
+import { currentGeneratedNote, completedAction, followUpNote, formatNote, verifiedResolution, type GeneratedNote, type Resolution } from './notes';
 export type Presence = '' | 'present' | 'absent';
 export type OerChoice = '' | 'yes' | 'no' | 'na' | 'unverified' | 'Pass' | 'Fail' | 'Not Determined';
-export type CorrectiveAction = {issue?:string; corrected?:string; action?:string; coaching?:string; retraining?:string; followUp?:string; date?:string; assigned?:string; notes?:string};
-export type OerAnswer = {answer?:OerChoice; value?:string; findings?:string[]; observations?:string; measurement?:string; evidence?:string; corrective?:CorrectiveAction; generatedNote?:string; note?:string};
+export type CorrectiveAction = {issue?:string; corrected?:string; action?:string; coaching?:string; retraining?:string; followUp?:string; date?:string; assigned?:string; notes?:string; verification?:string};
+export type OerAnswer = {answer?:OerChoice; value?:string; findings?:string[]; observations?:string; measurement?:string; evidence?:string; corrective?:CorrectiveAction; generatedNote?:string; note?:string; observationInput?:string; selectedFindings?:string[]; resolution?:Resolution; generated?:GeneratedNote};
 export type OerReport = {presence:Presence; answers:Record<number,OerAnswer>; summary?:string; generatedSummary?:string; wrapUp?:string; generatedWrapUp?:string; healthInspection?:{result?:string;timing?:string}; deepCleaning:{answer?:string; date?:string; evidence?:string; findings?:string; action?:string; note?:string; generatedNote?:string}};
 export type OerQuestion = {id:number; label:string; short:string; points:number; options:OerChoice[]; compliant:string; noncompliant:string; findings?:string[]; direct?:boolean; kind?:'text'|'select'; evidence?:boolean; measurement?:boolean};
 const yn:OerChoice[]=['yes','no'];
@@ -44,7 +45,7 @@ export const emptyReport=():OerReport=>({presence:'',answers:{},deepCleaning:{}}
 export const isAnswered=(q:OerQuestion,a?:OerAnswer)=>q.kind==='text'?!!a?.value?.trim()||a?.answer==='unverified':!!a?.answer;
 export const isNoncompliant=(q:OerQuestion,a?:OerAnswer)=>q.id<=28&&q.id!==19&&a?.answer===(q.id===14?'yes':'no');
 const sentence=(s?:string)=>s?.trim()?s.trim().replace(/[.!?]*$/,'')+'.':'';
-export function actionNote(c?:CorrectiveAction):string {if(!c)return '';return [c.issue?`Issue observed: ${sentence(c.issue)}`:'',c.corrected==='yes'?'Corrected during inspection.':c.corrected==='no'?'The issue was not corrected during inspection.':'',c.action?`${c.corrected==='yes'?'Action taken':'Recorded action (completion not confirmed)'}: ${sentence(c.action)}`:'',c.coaching==='yes'?'Coaching was provided.':'',c.retraining==='yes'?'Retraining is required.':'',c.followUp==='yes'?`Follow-up is required${c.date?` by ${c.date}`:''}${c.assigned?`, assigned to ${c.assigned}`:''}.`:'',sentence(c.notes)].filter(Boolean).join(' ')}
+export function actionNote(c?:CorrectiveAction):string {if(!c)return '';return [c.issue?`Issue observed: ${sentence(c.issue)}`:'',c.corrected==='yes'&&c.action?.trim()&&c.verification?'Corrected during inspection.':c.corrected==='no'?'The issue was not corrected during inspection.':'',c.action?`${c.corrected==='yes'&&c.action?.trim()&&c.verification?'Action taken':'Recorded action (completion not confirmed)'}: ${sentence(c.action)}`:'',c.coaching==='yes'?'Coaching was provided.':'',c.retraining==='yes'?'Retraining is required.':'',c.followUp==='yes'?`Follow-up is required${c.date?` by ${c.date}`:''}${c.assigned?`, assigned to ${c.assigned}`:''}.`:'',sentence(c.notes)].filter(Boolean).join(' ')}
 export function generateNote(q:OerQuestion,a:OerAnswer|undefined,presence:Presence,report?:OerReport):string {
  if(q.id===30&&report)return [generateSummary(report),a?.answer==='yes'?'An operator fine was recorded.':a?.answer==='no'?'No operator fine was recorded.':''].filter(Boolean).join(' ');
  if(!a||!isAnswered(q,a))return '';
@@ -55,9 +56,9 @@ export function generateNote(q:OerQuestion,a:OerAnswer|undefined,presence:Presen
  else if(q.id===32)base=`Supervisor rating: ${a.answer}.`;
  else base=isNoncompliant(q,a)?q.noncompliant:q.compliant;
  const finding=isNoncompliant(q,a)?(a.findings||[]).filter(f=>f!=='Other').map(f=>f==='Raw ingredients stored above cooked food'?'Raw ingredients were observed stored above cooked and ready-to-eat products, creating a potential cross-contamination risk.':sentence(f)).join(' '):'';
- return [base,finding,a.value&&q.kind!=='text'?`Details: ${sentence(a.value)}`:'',a.measurement?`Recorded measurement: ${sentence(a.measurement)}`:'',sentence(a.observations),a.evidence?`Evidence reference: ${sentence(a.evidence)}`:'',isNoncompliant(q,a)?actionNote(a.corrective):''].filter(Boolean).join(' ');
+ return [base,finding,a.value&&q.kind!=='text'?`Details: ${sentence(a.value)}`:'',a.measurement?`Recorded measurement: ${sentence(a.measurement)}`:'',sentence(a.observationInput ?? a.observations),a.evidence?`Evidence reference: ${sentence(a.evidence)}`:'',isNoncompliant(q,a)?responseActionNote(a):''].filter(Boolean).join(' ');
 }
-export const effectiveNote=(q:OerQuestion,a:OerAnswer|undefined,p:Presence,report?:OerReport)=>a?.note??generateNote(q,a,p,report);
+export const effectiveNote=(q:OerQuestion,a:OerAnswer|undefined,p:Presence,report?:OerReport)=>a?.note??(a?.generated?formatNote(currentGeneratedNote(a.generated,a.resolution)):generateNote(q,a,p,report));
 export const completion=(r:OerReport)=>questions.filter(q=>isAnswered(q,r.answers[q.id])).length;
 export function scoreReport(r:OerReport){let earned=0,possible=0;const total=questions.reduce((n,q)=>n+q.points,0);for(const q of questions){const a=r.answers[q.id];if(q.points&&['yes','no'].includes(a?.answer||'')){possible+=q.points;if(!isNoncompliant(q,a))earned+=q.points}}return {earned,possible,total,percentage:possible?Math.round(earned/possible*100):null,provisional:true as const};}
 const naturalList=(items:string[])=>items.length<2?items.join(''):items.length===2?items.join(' and '):`${items.slice(0,-1).join(', ')}, and ${items[items.length-1]}`;
@@ -67,25 +68,26 @@ export function generateSummary(r:OerReport):string {
  const areas=findings.map(q=>q.id===14&&r.answers[14]?.findings?.includes('Sauces improperly left at room temperature')?'keeping sauces at the required storage temperature':q.id===13&&r.answers[13]?.findings?.includes('Dry storage area requires cleaning and organization')?'cleaning and organizing the dry storage area within the sushi bar':improvementAreas[q.id]||q.short.toLowerCase());
  const temperatureIds=[1,8].filter(id=>r.answers[id]?.answer==='yes');
  const health=r.healthInspection;
- const completed=findings.filter(q=>r.answers[q.id]?.corrective?.corrected==='yes');
- const retraining=findings.some(q=>r.answers[q.id]?.corrective?.retraining==='yes');
- const followUp=findings.filter(q=>r.answers[q.id]?.corrective?.followUp==='yes');
+ const completed=findings.filter(q=>verifiedResolution(r.answers[q.id]?.resolution));
+ const retraining=findings.some(q=>r.answers[q.id]?.corrective?.retraining==='yes'||r.answers[q.id]?.resolution?.training==='Training Recommended');
+ const followUp=findings.filter(q=>r.answers[q.id]?.corrective?.followUp==='yes'||r.answers[q.id]?.resolution?.followUpRequired||r.answers[q.id]?.resolution?.status==='Follow-Up Required'||r.answers[q.id]?.resolution?.status==='Unable to Correct Onsite');
  return [r.presence==='present'?'The chef was present onsite during the inspection.':r.presence==='absent'?'The chef was not present onsite during the inspection.':'Chef presence has not been recorded.',
  temperatureIds.length===2?'Finished-product and ingredient temperatures were maintained within the required limits.':temperatureIds[0]===1?'Cold finished-product temperatures were maintained below 41°F.':temperatureIds[0]===8?'Cooler and freezer ingredient temperatures met the required limits.':'',
  health?.result==='passed'?`The location passed a Health Department inspection${health.timing?.trim()?` ${health.timing.trim()}`:''}.`:health?.result==='failed'?`The location did not pass a Health Department inspection${health.timing?.trim()?` ${health.timing.trim()}`:''}.`:'',
  areas.length?`The FZ needs to work on ${naturalList(areas)}.`:'',
- ...findings.map(q=>sentence(r.answers[q.id]?.observations)),
+ ...findings.map(q=>sentence(r.answers[q.id]?.observationInput ?? r.answers[q.id]?.observations)),
  r.deepCleaning.findings?`Deep-cleaning findings: ${sentence(r.deepCleaning.findings)}`:'',
  completed.length?`Corrected during inspection: ${naturalList(completed.map(q=>q.short.toLowerCase()))}.`:'',
- ...completed.map(q=>sentence(r.answers[q.id]?.corrective?.action)),
- ...findings.filter(q=>r.answers[q.id]?.corrective?.corrected!=='yes'&&r.answers[q.id]?.corrective?.action).map(q=>`Recorded action for ${q.short.toLowerCase()} (completion not confirmed): ${sentence(r.answers[q.id]?.corrective?.action)}`),
+ ...findings.map(q=>completedAction(r.answers[q.id]?.resolution)),
+ ...findings.filter(q=>!verifiedResolution(r.answers[q.id]?.resolution)&&r.answers[q.id]?.corrective?.action).map(q=>`Recorded action for ${q.short.toLowerCase()} (completion not confirmed): ${sentence(r.answers[q.id]?.corrective?.action)}`),
  findings.some(q=>r.answers[q.id]?.corrective?.coaching==='yes')?'Coaching was provided on the documented findings.':'',
  retraining?'Retraining is required for the FZ on standard food safety requirements.':'',
  followUp.length?`Follow-up is required for ${naturalList(followUp.map(q=>q.short.toLowerCase()))}.`:'',
  ...followUp.map(q=>{const c=r.answers[q.id]?.corrective;return c?.date||c?.assigned?`Follow-up for ${q.short.toLowerCase()}${c.assigned?` is assigned to ${c.assigned}`:''}${c.date?` by ${c.date}`:''}.`:''}),
  r.deepCleaning.answer==='yes'?`The location underwent deep cleaning during the audit${r.deepCleaning.date?` (recorded date: ${r.deepCleaning.date})`:''}.`:r.deepCleaning.answer==='no'?'The location did not undergo deep cleaning during the audit.':'',
  r.deepCleaning.action?`Deep-cleaning action recorded: ${sentence(r.deepCleaning.action)}`:'',
- questions.some(q=>q.id<=28&&r.answers[q.id]?.answer==='unverified')?'Some operator practices or information could not be verified.':''
+ questions.some(q=>q.id<=28&&r.answers[q.id]?.answer==='unverified')?'Some operator practices or information could not be verified.':'',
+ ...findings.map(q=>followUpNote(r.answers[q.id]?.resolution))
  ].filter(Boolean).join(' ');
 }
 export function generateWrapUp(r:OerReport):string {
@@ -95,7 +97,7 @@ export function generateWrapUp(r:OerReport):string {
  return [r.presence==='present'?'The chef was present during the inspection.':r.presence==='absent'?'The chef was not present during the inspection.':'Chef presence has not been recorded.',
  `${inspected.length} of 28 inspection questions have recorded responses.`,
  findings.length?`Areas requiring attention: ${findings.map(q=>q.short.toLowerCase()).join(', ')}.`:inspected.length?'No noncompliant responses have been recorded in the answered inspection questions.':'No inspection findings have been recorded.',
- ...findings.map(q=>{const action=actionNote(r.answers[q.id]?.corrective);return action?`${q.short}: ${action}`:''}),
+ ...findings.map(q=>{const action=responseActionNote(r.answers[q.id]);return action?`${q.short}: ${action}`:''}),
  unverified.length?`Unable to verify: ${unverified.map(q=>q.short.toLowerCase()).join(', ')}.`:'',
  ...questions.filter(q=>[29,30,32].includes(q.id)).map(q=>generateNote(q,r.answers[q.id],r.presence))
  ].filter(Boolean).join(' ');
@@ -106,7 +108,7 @@ export function generateDeepCleaningNote(r:OerReport):string {
  return [d.answer==='yes'?'The location underwent deep cleaning during the audit.':d.answer==='no'?'The location did not undergo deep cleaning during the audit.':'Deep cleaning during the audit has not been confirmed.',
  d.date?`Recorded deep-cleaning date: ${d.date}.`:'',
  cleaningFindings.length?`Inspection findings requiring cleaning or sanitation attention included ${cleaningFindings.map(q=>q.short.toLowerCase()).join(', ')}.`:'',
- ...cleaningFindings.map(q=>{const a=r.answers[q.id];return [a.findings?.filter(f=>f!=='Other').map(sentence).join(' '),sentence(a.observations),actionNote(a.corrective)].filter(Boolean).join(' ')}),
+ ...cleaningFindings.map(q=>{const a=r.answers[q.id];return [a.findings?.filter(f=>f!=='Other').map(sentence).join(' '),sentence(a.observationInput ?? a.observations),responseActionNote(a)].filter(Boolean).join(' ')}),
  sentence(d.findings),d.action?`Deep-cleaning action recorded: ${sentence(d.action)}`:'',d.evidence?`Evidence reference: ${sentence(d.evidence)}`:''
  ].filter(Boolean).join(' ');
 }
@@ -116,3 +118,5 @@ export function fullReport(r:OerReport):string {
  `WRAP-UP\n${r.wrapUp??generateWrapUp(r)}`,`DEEP CLEANING\n${r.deepCleaning.note??generateDeepCleaningNote(r)}`].filter(Boolean).join('\n\n');
 }
 export function prepareReport(r:OerReport):OerReport{return {...r,generatedSummary:generateSummary(r),generatedWrapUp:generateWrapUp(r),deepCleaning:{...r.deepCleaning,generatedNote:generateDeepCleaningNote(r)},answers:Object.fromEntries(questions.filter(q=>r.answers[q.id]||q.id===30).map(q=>[q.id,{...r.answers[q.id],generatedNote:generateNote(q,r.answers[q.id],r.presence,r)}]))}}
+
+export function responseActionNote(a?:OerAnswer):string {return a?.resolution ? [completedAction(a.resolution),a.resolution.training==='Training Recommended'?'Training is recommended.':'',followUpNote(a.resolution)].filter(Boolean).join(' ') : actionNote(a?.corrective);}

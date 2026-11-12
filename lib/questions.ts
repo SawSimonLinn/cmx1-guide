@@ -1,5 +1,6 @@
+import { fallbackNote, currentGeneratedNote, formatNote, type GeneratedNote, type Resolution } from './notes';
 export type Answer = 'yes' | 'no' | 'na' | '';
-export type ResponseData = { answer: Answer; value?: string; note?: string };
+export type ResponseData = { answer: Answer; value?: string; note?: string; observationInput?: string; selectedFindings?: string[]; resolution?: Resolution; generated?: GeneratedNote };
 export type Answers = Record<number, ResponseData>;
 export type Question = { id: number; label: string; short: string; kind: 'binary' | 'text' | 'select' | 'multi'; options?: string[]; helper?: string; placeholder?: string };
 
@@ -50,7 +51,7 @@ export function generateNote(q: Question, response?: ResponseData): string {
   }
 }
 
-export function effectiveNote(q: Question, r?: ResponseData) {return r?.note?.trim() || generateNote(q,r);}
+export function effectiveNote(q: Question, r?: ResponseData) {return r?.note ?? (r?.generated ? formatNote(currentGeneratedNote(r.generated,r.resolution)) : r && (r.observationInput?.trim() || r.selectedFindings?.length || r.resolution) ? formatNote(fallbackNote({question:q.label,answer:r.answer||r.value||'',observation:r.observationInput||'',findings:r.selectedFindings||[],resolution:r.resolution,baseline:generateNote(q,r)})) : generateNote(q,r));}
 export function isAnswered(q:Question, r?:ResponseData) {return q.kind==='binary'?Boolean(r?.answer):Boolean(r?.value?.trim());}
 export function fullReport(answers: Answers) {
   return questions.filter(q=>isAnswered(q,answers[q.id])).map(q=>`${String(q.id).padStart(2,'0')}. ${q.short}\n${effectiveNote(q,answers[q.id])}`).join('\n\n');

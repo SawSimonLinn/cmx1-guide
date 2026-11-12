@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "test": "rm -rf .test-build && tsc lib/oer.ts lib/questions.ts --module commonjs --target es2020 --outDir .test-build --skipLibCheck && node --test tests/*.test.cjs"
+    "test": "rm -rf .test-build && tsc lib/training.ts lib/server/training-provider.ts lib/oer.ts lib/questions.ts lib/notes.ts lib/server/note-provider.ts components/report-journal.ts --rootDir . --module commonjs --target es2020 --outDir .test-build --skipLibCheck && node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
@@ -18,9 +19,13 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.32"
   }
 }
