@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 // One transaction installs prerequisites before dependent RPCs and storage policies.
-const files=['supabase/schema.sql','supabase/migrations/20261110_oer.sql','supabase/migrations/20261111_daily_operations.sql','supabase/migrations/20261111_improvement_training.sql','supabase/migrations/20261111_training_evidence.sql'];
+const files=['supabase/schema.sql','supabase/migrations/20261110_oer.sql','supabase/migrations/20261111_daily_operations.sql','supabase/migrations/20261111_improvement_training.sql','supabase/migrations/20261111_training_evidence.sql','supabase/migrations/20261112_ai_conversations.sql'];
 const parts=files.map(file=>{
  let sql=readFileSync(file,'utf8').replace(/^begin;\s*$/gm,'').replace(/^commit;\s*$/gm,'');
  // Do not temporarily narrow the type constraint when training rows already exist.

@@ -4,6 +4,7 @@ test('single SQL setup installs an empty project and reruns without losing repor
  try{
  await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id serial primary key,bucket_id text,name text);alter table storage.objects enable row level security;create function storage.foldername(name text) returns text[] language sql immutable as $$ select string_to_array(name,'/') $$;`);
  const sql=readFileSync('supabase/setup.sql','utf8');await db.exec(sql);
+ assert.equal((await db.query("select count(*)::int as n from pg_policies where tablename='ai_messages'")).rows[0].n,1);
  const uid='11111111-1111-4111-8111-111111111111';await db.query('insert into auth.users values($1)',[uid]);
  await db.query("insert into visit_reports(user_id,title,form_type,training_data) values($1,'Keep this report','Improvement Training Record','{\"issues\":[]}'::jsonb)",[uid]);
  await db.exec(sql);assert.equal((await db.query('select title from visit_reports')).rows[0].title,'Keep this report');

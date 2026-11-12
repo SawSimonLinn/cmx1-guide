@@ -35,6 +35,7 @@ For **existing projects**, run these additive migrations in Supabase SQL Editor,
 2. `supabase/migrations/20261111_daily_operations.sql`
 3. `supabase/migrations/20261111_improvement_training.sql`
 4. `supabase/migrations/20261111_training_evidence.sql` (Supabase Storage)
+5. `supabase/migrations/20261112_ai_conversations.sql` (AI Assistant history)
 
 For **new projects**, run `supabase/schema.sql` followed by all migrations. Do not recreate or drop the existing table. The upgrade adds title, executive summary, completion timestamp, revision and save-token columns. Existing report JSON and per-user RLS policies remain intact. `save_field_report` is a SECURITY INVOKER RPC restricted to authenticated users; it derives ownership from `auth.uid()`, uses a row lock and revision comparison, and controls timestamps in the database. A revision conflict returns SQLSTATE `40001`.
 

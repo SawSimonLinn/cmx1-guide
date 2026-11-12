@@ -13,6 +13,7 @@ create table if not exists public.ai_messages (
 );
 create index if not exists ai_messages_scope on public.ai_messages(user_id,scope,created_at);
 alter table public.ai_messages enable row level security;
+drop policy if exists ai_messages_owner on public.ai_messages;
 create policy ai_messages_owner on public.ai_messages for all to authenticated
  using (user_id=auth.uid()) with check (
  user_id=auth.uid() and (report_id is null or exists (
@@ -20,3 +21,6 @@ create policy ai_messages_owner on public.ai_messages for all to authenticated
  )) and scope=coalesce(report_id::text,'global')||':'||coalesce(question_id,'report')
 );
 grant select,insert,delete on public.ai_messages to authenticated;
+
+-- Refresh the REST schema cache after installing this table.
+notify pgrst, 'reload schema';
